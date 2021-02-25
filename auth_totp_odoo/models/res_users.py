@@ -9,16 +9,62 @@ import re
 import struct
 import time
 
+import json
+import decorator
+
 import werkzeug.urls
 
 from odoo import _, api, fields, models
-from odoo.addons.base.models.res_users import check_identity
 from odoo.exceptions import AccessDenied, UserError
 from odoo.http import request, db_list
 
 _logger = logging.getLogger(__name__)
 
 compress = functools.partial(re.sub, r'\s', '')
+
+def _jsonable(o):
+    try:
+        json.dumps(o)
+    except TypeError:
+        return False
+    else:
+        return True
+
+@decorator.decorator
+def check_identity(fn, self):
+    """ Wrapped method should be an *action method* (called from a button
+    type=object), and requires extra security to be executed. This decorator
+    checks if the identity (password) has been checked in the last 10mn, and
+    pops up an identity check wizard if not.
+    Prevents access outside of interactive contexts (aka with a request)
+    """
+    if not request:
+        raise UserError(_("This method can only be accessed over HTTP"))
+
+    if request.session.get('identity-check-last', 0) > time.time() - 10 * 60:
+        # update identity-check-last like github?
+        return fn(self)
+
+    w = self.sudo().env['res.users.identitycheck'].create({
+        'request': json.dumps([
+            { # strip non-jsonable keys (e.g. mapped to recordsets like binary_field_real_user)
+                k: v for k, v in self.env.context.items()
+                if _jsonable(v)
+            },
+            self._name,
+            self.ids,
+            fn.__name__
+        ])
+    })
+    return {
+        'type': 'ir.actions.act_window',
+        'res_model': 'res.users.identitycheck',
+        'res_id': w.id,
+        'name': _("Security Control"),
+        'target': 'new',
+        'views': [(False, 'form')],
+    }
+
 class Users(models.Model):
     _inherit = 'res.users'
 
