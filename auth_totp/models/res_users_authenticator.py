@@ -39,12 +39,10 @@ class ResUsersAuthenticator(models.Model):
         ondelete='cascade',
     )
 
-    @api.multi
     @api.constrains('user_id')
     def _check_has_user(self):
         self.filtered(lambda r: not r.user_id).unlink()
 
-    @api.multi
     def validate_conf_code(self, confirmation_code):
         for record in self:
             totp = pyotp.TOTP(record.secret_key)

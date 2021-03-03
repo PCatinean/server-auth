@@ -59,7 +59,6 @@ class ResUsersAuthenticatorCreate(models.TransientModel):
         user_id = self.env.context.get('uid')
         return self.env['res.users'].browse(user_id)
 
-    @api.multi
     @api.depends(
         'secret_key',
         'user_id.display_name',
@@ -86,7 +85,6 @@ class ResUsersAuthenticatorCreate(models.TransientModel):
             )
             record.qr_code_tag = tag_base + tag_params
 
-    @api.multi
     def action_create(self):
         self.ensure_one()
         self._perform_validations()
@@ -96,7 +94,6 @@ class ResUsersAuthenticatorCreate(models.TransientModel):
         action_data.update({'res_id': self.user_id.id})
         return action_data
 
-    @api.multi
     def _perform_validations(self):
         totp = pyotp.TOTP(self.secret_key)
         if not totp.verify(self.confirmation_code):
@@ -107,7 +104,6 @@ class ResUsersAuthenticatorCreate(models.TransientModel):
                 ' your authentication app.'
             ))
 
-    @api.multi
     def _create_authenticator(self):
         self.env['res.users.authenticator'].create({
             'name': self.name,
